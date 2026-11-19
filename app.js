@@ -79,14 +79,14 @@ function renderLayersControl() {
 renderLayersControl();
 
 // 3. 年ごとの「地図に描く部品」を入れておく入れ物
-//    年 → { routes: その年に初めて開業した路線の数, polylines: 線の部品のリスト,
+//    年 → { sections: その年に開業した区間の数, polylines: 線の部品のリスト,
 //           stations: 駅の数, markers: 点の部品のリスト }
 //    部品は最初に作っておくだけで、地図にはまだ載せない。スライダーで年が進んだときに載せる
 const itemsByYear = new Map();
 const firstYear = Number(slider.min);
 const lastYear = Number(slider.max);
 for (let year = firstYear; year <= lastYear; year++) {
-  itemsByYear.set(year, { routes: 0, polylines: [], stations: 0, markers: [] });
+  itemsByYear.set(year, { sections: 0, polylines: [], stations: 0, markers: [] });
 }
 
 // いま地図に載せている年。まだ何も載せていないときは null
@@ -127,9 +127,10 @@ function startWithData(data) {
 function clearData() {
   stopPlaying(); // 再生中なら止める
   map.closePopup(); // 開いているポップアップを閉じる
+  selectedRoute = null; // 強調表示している路線も、解除する
   for (const [year, items] of itemsByYear) {
     for (const layer of [...items.polylines, ...items.markers]) layer.remove(); // 地図から外す
-    itemsByYear.set(year, { routes: 0, polylines: [], stations: 0, markers: [] });
+    itemsByYear.set(year, { sections: 0, polylines: [], stations: 0, markers: [] });
   }
   searchStations.length = 0;
   searchRoutes.length = 0;
@@ -197,6 +198,7 @@ function prepareLines(lines) {
   for (const line of lines) {
     const items = itemsByYear.get(line.year);
     if (!items) continue; // スライダーの範囲外の年は使わない
+    items.sections += 1; // 元データの区間1件を、区間数として1つ数える
 
     const routeKey = line.company + "／" + line.name;
     let route = routes.get(routeKey);
@@ -224,14 +226,20 @@ function prepareLines(lines) {
       const polyline = L.polyline(latlngs, { color: route.isJnr ? JNR_COLOR : OTHER_COLOR });
       // クリックされたときに、ポップアップを出す（内容は、開いたときに作る）
       polyline.bindPopup(() => routePopupHtml(route, line.year));
+      polyline._route = route; // この線が、どの路線の一部かを覚えておく（強調表示で使う）
+      // クリックされたら、この路線の全区間を強調表示する。地図の空白クリック（解除）と区別するため、
+      // クリックを地図に伝えない
+      polyline.on("click", (event) => {
+        L.DomEvent.stopPropagation(event);
+        selectRoute(route);
+      });
       items.polylines.push(polyline);
       section.polylines.push(polyline);
     }
   }
 
-  // 路線が初めて現れる年ごとに、路線の数を数える。検索用の一覧にも入れる
+  // 検索用の一覧に、路線を入れる（画面の件数は、上で数えた区間数を使う）
   for (const route of routes.values()) {
-    itemsByYear.get(route.firstYear).routes += 1;
     searchRoutes.push(route);
   }
 }
@@ -358,6 +366,22 @@ function lineWeight() {
 // その年に開業した新設区間は、ほかの線の何倍の太さで表示するか
 const NEW_LINE_SCALE = 2;
 
+// 強調表示する路線（運営会社＋路線名が同じ区間のまとまり）。選んでいないときは null
+let selectedRoute = null;
+const SELECTED_LINE_SCALE = 3; // 選んだ路線の太さの倍率
+const DIM_OPACITY = 0.25; // 選んだ路線以外の線の不透明度（薄くする）
+
+// 路線を選んで、全区間を強調表示する。null を渡すと解除する
+function selectRoute(route) {
+  selectedRoute = route;
+  for (const year of itemsByYear.keys()) restyleLines(year);
+}
+
+// 地図の空白をクリックしたら、強調表示を解除する
+map.on("click", () => {
+  if (selectedRoute !== null) selectRoute(null);
+});
+
 // 点の半径：拡大率5以下では0（表示しない）、拡大率が1上がるごとに1.2ずつ大きくして、7まで。
 // 日本全体が見える縮小したときは、点が目立たないようにする
 function stationRadius() {
@@ -385,12 +409,19 @@ function stationStyle() {
 function restyleLines(year) {
   const isNew = year === shownYear;
   for (const polyline of itemsByYear.get(year).polylines) {
-    polyline.setStyle({
-      weight: isNew ? lineWeight() * NEW_LINE_SCALE : lineWeight(),
-      opacity: isNew ? newLineOpacity : 1,
-    });
-    // 太い線は、ほかの線に隠れないように、一番上に出す
-    if (isNew && map.hasLayer(polyline)) polyline.bringToFront();
+    let weight = isNew ? lineWeight() * NEW_LINE_SCALE : lineWeight();
+    let opacity = isNew ? newLineOpacity : 1;
+    const isSelected = selectedRoute !== null && polyline._route === selectedRoute;
+    if (selectedRoute !== null) {
+      if (isSelected) {
+        weight = Math.max(weight, lineWeight() * SELECTED_LINE_SCALE); // 選んだ路線は、太くする
+      } else {
+        opacity *= DIM_OPACITY; // ほかの路線は、薄くして目立たなくする
+      }
+    }
+    polyline.setStyle({ weight, opacity });
+// 太い線は、ほかの線に隠れないように、一番上に出す
+    if ((isNew || isSelected) && map.hasLayer(polyline)) polyline.bringToFront();
   }
 }
 
@@ -449,23 +480,23 @@ map.on("zoomend", () => {
 // 地図を動かし終わったときも、新しく画面に入った駅に、駅名を付ける
 map.on("moveend", updateStationLabels);
 
-// 年の表示と、「選択された路線／駅」の件数を更新する
+// 年の表示と、「選択された区間／駅」の件数を更新する
 function updateLabels(year) {
-  let routeCount = 0;
+  let sectionCount = 0;
   let stationCount = 0;
   for (let y = firstYear; y <= year; y++) {
-    routeCount += itemsByYear.get(y).routes;
+    sectionCount += itemsByYear.get(y).sections;
     stationCount += itemsByYear.get(y).stations;
   }
   yearLabel.textContent = year;
-  renderCounts(routeCount, stationCount);
+  renderCounts(sectionCount, stationCount);
 }
 
-// 「選択された路線／駅」の件数を、いまの言語で書く。言語を切り替えたとき用に、数を覚えておく
-let lastCounts = { routes: 0, stations: 0 };
-function renderCounts(routes, stations) {
-  lastCounts = { routes, stations };
-  countsEl.textContent = t("counts", { routes, stations });
+// 「選択された区間／駅」の件数を、いまの言語で書く。言語を切り替えたとき用に、数を覚えておく
+let lastCounts = { sections: 0, stations: 0 };
+function renderCounts(sections, stations) {
+  lastCounts = { sections, stations };
+  countsEl.textContent = t("counts", { sections, stations });
 }
 
 // スライダーを動かしている間も、動かすたびに地図を更新する
@@ -633,6 +664,7 @@ function goToResult(result) {
     map.setView(result.marker.getLatLng(), Math.max(map.getZoom(), 12));
     result.marker.openPopup();
   } else {
+    selectRoute(result.route); // 選んだ路線を強調表示する
     // いま表示されている年までの区間を、すべて画面に収める
     const shown = result.route.sections.filter((s) => s.year <= Number(slider.value));
     const lines = shown.flatMap((s) => s.polylines);
@@ -688,7 +720,7 @@ function applyLanguage() {
     playButton.textContent = t("play.start");
   }
   setStatus(dataStatus);
-  renderCounts(lastCounts.routes, lastCounts.stations);
+  renderCounts(lastCounts.sections, lastCounts.stations);
   if (lastError) showError(lastError.key, lastError.params);
   renderLegend();
   renderLayersControl();

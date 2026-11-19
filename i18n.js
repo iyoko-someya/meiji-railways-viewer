@@ -10,7 +10,7 @@ const MESSAGES = {
     "lang.buttonLabel": "表示言語を英語に切り替える",
     "play.start": "▶ 再生",
     "play.stop": "⏸ 停止",
-    "counts": "選択された路線 {routes} 本 / 駅 {stations} 件",
+    "counts": "区間数：{sections} / 駅数：{stations}",
     "status.none": "データが読み込まれていません",
     "status.loaded": "読み込み済み",
     "status.processing": "処理中です。数秒かかります…（データは、このブラウザの中だけで加工します）",
@@ -43,7 +43,7 @@ const MESSAGES = {
     "lang.buttonLabel": "Switch the display language to Japanese",
     "play.start": "▶ Play",
     "play.stop": "⏸ Stop",
-    "counts": "Selected: {routes} routes / {stations} stations",
+    "counts": "Sections: {sections} / Stations: {stations}",
     "status.none": "No data loaded",
     "status.loaded": "Data loaded",
     "status.processing": "Processing. This takes a few seconds… (the data is processed only inside this browser)",
@@ -81,7 +81,7 @@ try {
   // 保存した言語が読めなくても、日本語で続ける
 }
 
-// 訳文を取り出す。t("counts", { routes: 3, stations: 5 }) のように使う
+// 訳文を取り出す。t("counts", { sections: 3, stations: 5 }) のように使う
 function t(key, params = {}) {
   const text = MESSAGES[currentLang][key] ?? MESSAGES.ja[key] ?? key;
   return text.replace(/\{(\w+)\}/g, (match, name) => (name in params ? params[name] : match));
