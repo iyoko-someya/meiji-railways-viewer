@@ -1,4 +1,4 @@
-# Meiji Railways Finder (1872-1912)
+# Meiji Railways Viewer (1872-1912)
 
 
 
@@ -12,7 +12,7 @@
 
 ## 2. 使い方
 
-1. https://github.com/iyoko-someya/meiji-railways-viewer.gitにアクセスする
+1. [https://github.com/iyoko-someya/meiji-railways-viewer.git](https://iyoko-someya.github.io/meiji-railways-viewer/)にアクセスする
 
 2. Webページの右上にある「取得方法」をクリックし、ハイパーリンクから最新の鉄道時系列データをダウンロードする
 
