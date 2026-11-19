@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meiji Railways Viewer (1872-1912)</title>
+
+  <!-- Leaflet（地図ライブラリ）のスタイル。CDN から読み込む -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <!-- タイトルと、言語の切り替えボタンを、同じ高さに横に並べる（ボタンは右端） -->
+    <div class="header-row">
+      <h1>Meiji Railways Viewer (1872-1912)</h1>
+      <button type="button" id="lang-button">English</button>
+    </div>
+    <!-- データが読み込めなかったときだけ、app.js がここにメッセージを出す（普段は隠れている） -->
+    <p id="error" hidden></p>
+  </header>
+
+  <!-- 年を選ぶスライダー。データの準備ができるまでは、動かせない（disabled） -->
+  <section id="controls">
+    <label for="year-slider"><span lang="en">Year </span><output id="year-label">1872</output><span lang="ja">年</span></label>
+    <input type="range" id="year-slider" min="1872" max="1912" step="1" value="1872" disabled>
+    <!-- 年を自動で進めて、変化を動画のように見せるボタン（データの準備ができるまでは押せない） -->
+    <button type="button" id="play-button" disabled>▶ 再生</button>
+    <span id="counts"></span>
+
+    <!-- データの読み込み欄（画面右上）。このページには鉄道のデータが含まれないので、利用者が国土数値情報から取得したファイルを選ぶ。
+         data/rail-1872-1913.json が手元にあるときは、自動で読み込まれる -->
+    <div id="data-loader">
+      <span class="data-title"><span lang="ja">データ：</span><span lang="en">Data:</span></span>
+      <!-- ブラウザ標準のファイル選択欄（英語表示の "Choose File / No file chosen"）は隠して、
+           代わりに、日本語のボタン（label）を見せる。ボタンを押すと、隠した input が反応する -->
+      <label for="data-files" class="file-button"><span lang="ja">ファイルを選択</span><span lang="en">Choose files</span></label>
+      <input type="file" id="data-files" class="visually-hidden" accept=".geojson,.json" multiple>
+      <span id="data-status"></span>
+      <!-- 取得方法の説明。押すと開く（下に重ねて表示する） -->
+      <details id="data-help">
+        <summary><span lang="ja">取得方法</span><span lang="en">How to get the data</span></summary>
+        <div class="data-help-body">
+          <ol lang="ja">
+            <li>
+              <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N05-v2_0.html" target="_blank" rel="noopener">国土数値情報「鉄道時系列データ」</a>
+              のページを開き、利用規約を読んで、データ（ZIP ファイル）をダウンロードして解凍する。
+            </li>
+            <li>
+              <code>N05-22_GML</code> → <code>UTF-8</code> の順にフォルダを選択し、
+              <code>N05-22_RailroadSection2.geojson</code> と <code>N05-22_Station2.geojson</code> の2つを同時に選択して開く。
+            </li>
+            <li>このビューアに表示されるのは、全年度のデータのうち1872年から1912年に開業された駅・区間だけである。</li>
+          </ol>
+          <ol lang="en">
+            <li>
+              Open the <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N05-v2_0.html" target="_blank" rel="noopener">Digital National Land Information "Railway Time-series Data"</a>
+              page (in Japanese), read the terms of use, then download and unzip the data (ZIP file).
+            </li>
+            <li>
+              Open the folders <code>N05-22_GML</code> → <code>UTF-8</code> in that order, then select
+              <code>N05-22_RailroadSection2.geojson</code> and <code>N05-22_Station2.geojson</code> at the same time and open them.
+            </li>
+            <li>This viewer shows only the stations and sections that opened between 1872 and 1912 out of the full data.</li>
+          </ol>
+          <p class="note" lang="ja">選んだファイルは、このブラウザの中だけで使います。インターネットには送らず、保存もしません。</p>
+          <p class="note" lang="en">The files you choose are used only inside this browser. They are not sent over the internet or saved.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- 駅名・路線名の検索欄。スライダーの下に置く。入力すると、下に候補が出る（データの準備ができるまでは入力できない） -->
+  <section id="search-row">
+    <div id="search-box">
+      <input type="search" id="search-input" placeholder="駅名・路線名で検索" autocomplete="off" disabled>
+      <ul id="search-results" hidden></ul>
+    </div>
+  </section>
+
+  <!-- ここに地図が表示される -->
+  <div id="map"></div>
+
+  <!-- 出典・クレジット。使ったデータ・地図・ライブラリを、すべてここに書く -->
+  <!-- details と summary：見出し（summary）の左の矢印を押すと、中身が開いたり閉じたりする。最初は開いている（open） -->
+  <details id="credits" open>
+    <summary><span lang="ja">出典・クレジット</span><span lang="en">Sources and credits</span></summary>
+    <ul lang="ja">
+      <li>
+        【鉄道データ】出典：国土交通省 国土数値情報ダウンロードサイト
+        「国土数値情報（鉄道時系列データ）」（国土交通省）を加工して作成
+        （<a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N05-v2_0.html" target="_blank" rel="noopener">https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N05-v2_0.html</a>）<br>
+        加工：開業年が1872年〜1912年の路線・駅だけを抽出、開業年が不明のものは除外、同じ位置の駅を1つに統合、座標を簡略化<br>
+        使用許諾条件：非商用（国土数値情報利用規約）<br>
+        原典資料：国土政策局「国土数値情報（鉄道）」、国土交通省鉄道局監修「鉄道要覧」、国土地理院「数値地図25000」、
+        JTBパブリッシング「停車場変遷大辞典」、各鉄道事業者の公式ウェブサイトなど<br>
+        注：1950年以前に廃止された駅は表示されない
+      </li>
+      <li>
+        【背景地図】出典：国土地理院「地理院タイル」（淡色地図・白地図）
+        （<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">https://maps.gsi.go.jp/development/ichiran.html</a>）
+      </li>
+      <li>
+        【地図ライブラリ】出典：Leaflet 1.9.4、BSD-2-Clause ライセンス
+        （<a href="https://leafletjs.com/" target="_blank" rel="noopener">https://leafletjs.com/</a>）
+      </li>
+      <li>
+        【注意】このデータは「昭和25年（1950年）以降の整備状況」が元のため、1950年より前に廃止された路線・駅は含まれない。
+        表示される位置は現在の線形に基づき、当時の実際の線路とは異なる場合がある。
+        この加工情報は、国や原典の著作者が作成したものではない。
+      </li>
+    </ul>
+    <ul lang="en">
+      <li>
+        [Railway data] Source: Ministry of Land, Infrastructure, Transport and Tourism (MLIT), Digital National Land Information download site,
+        "Digital National Land Information (Railway Time-series Data)" (MLIT); processed by the author
+        (<a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N05-v2_0.html" target="_blank" rel="noopener">https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N05-v2_0.html</a>)<br>
+        Processing: only routes and stations opened between 1872 and 1912 are extracted; items with unknown opening years are excluded; stations at the same location are merged; coordinates are simplified<br>
+        Terms of use: non-commercial (Digital National Land Information Terms of Use)<br>
+        Original sources: "Digital National Land Information (Railways)" by the MLIT National Spatial Planning and Regional Policy Bureau, "Tetsudo Yoran" supervised by the MLIT Railway Bureau, "Digital Map 25000" by the Geospatial Information Authority of Japan (GSI),
+        "Teishajo Hensen Daijiten" by JTB Publishing, and the official websites of railway operators<br>
+        Note: stations closed before 1950 are not shown
+      </li>
+      <li>
+        [Base maps] Source: GSI Tiles by the Geospatial Information Authority of Japan (Pale map and Blank map)
+        (<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">https://maps.gsi.go.jp/development/ichiran.html</a>)
+      </li>
+      <li>
+        [Map library] Source: Leaflet 1.9.4, BSD-2-Clause license
+        (<a href="https://leafletjs.com/" target="_blank" rel="noopener">https://leafletjs.com/</a>)
+      </li>
+      <li>
+        [Notice] The data is based on the "status of the railways since 1950 (Showa 25)", so routes and stations closed before 1950 are not included.
+        Displayed positions are based on present-day alignments and may differ from the actual tracks of the time.
+        This processed information was not created by the national government or the original authors.
+      </li>
+    </ul>
+  </details>
+
+  <!-- Leaflet 本体。app.js より先に読み込む -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="i18n.js"></script>
+  <script src="build-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

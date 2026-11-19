@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+.claude/settings.local.json
+# 国土数値情報の元データ（約265MB）は公開しない
+data/Rail-ts/
+# 自分用のメモ（次回の再開手順など）は公開しない
+.notes/
+# 加工済みデータ（国土数値情報の複製物にあたるため）は公開しない
+data/rail-1872-1913.json

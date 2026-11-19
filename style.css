@@ -1,0 +1,351 @@
+/* ページ全体の余白をなくして、地図を画面いっぱいに使う */
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: sans-serif;
+}
+
+body {
+  display: flex;
+  flex-direction: column; /* 上に見出し、下に地図を縦に並べる */
+}
+
+header {
+  padding: 8px 16px;
+  background: #f4f1ea;
+  border-bottom: 1px solid #ccc;
+}
+
+/* タイトルと言語ボタンを横に並べて、ボタンを右端に寄せる */
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+/* 言語の切り替えボタン（丸い角のボタン） */
+#lang-button {
+  padding: 3px 12px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: 1px solid #888;
+  border-radius: 16px;
+  background: #fff;
+}
+
+#lang-button:hover {
+  background: #e9e5da;
+}
+
+/* 言語の切り替え：ページ全体の lang が "ja" のときは英語の部分を、"en" のときは日本語の部分を隠す */
+html[lang="ja"] [lang="en"],
+html[lang="en"] [lang="ja"] {
+  display: none;
+}
+
+#error {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  color: #c0392b;
+}
+
+/* スライダーの行：年・スライダー・件数を横に並べる */
+#controls {
+  display: flex;
+  flex-wrap: wrap; /* 画面が狭いときは、2段に折り返す */
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px;
+  background: #fff;
+  border-bottom: 1px solid #ccc;
+}
+
+#controls label {
+  font-size: 1rem; /* 年の表示の文字の大きさ。検索欄もこれと同じ大きさにそろえる */
+  font-weight: bold;
+  min-width: 4.5em; /* 年の桁数が変わっても、スライダーの位置がずれないようにする */
+}
+
+#year-slider {
+  flex: 1; /* 余った幅を、スライダーが使う */
+  max-width: 600px;
+}
+
+#play-button {
+  min-width: 5.5em; /* 「再生」と「停止」で、ボタンの幅が変わらないようにする */
+  padding: 4px 10px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: 1px solid #999; /* 角を丸くするため、枠線をこちらで指定する */
+  border-radius: 16px; /* 角の丸さ（検索欄と同じ雰囲気にそろえる） */
+  background: #f5f5f5;
+}
+
+#play-button:disabled {
+  background: #e8e8e8;
+}
+
+#play-button:disabled {
+  cursor: default;
+}
+
+#counts {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+/* 検索の行：スライダーの行の下に置く */
+#search-row {
+  padding: 6px 16px 8px;
+  background: #fff;
+  border-bottom: 1px solid #ccc;
+}
+
+/* 検索欄：大きめにする。候補のリストは、この欄の真下に重ねて表示する */
+#search-box {
+  position: relative;
+  max-width: 640px;
+}
+
+#search-input {
+  box-sizing: border-box; /* 余白と枠線を含めた幅で、大きさを指定する */
+  width: 100%;
+  padding: 10px 12px;
+  font-family: inherit; /* 入力欄は、そのままだと別の字体になるので、ページ全体と同じにする */
+  font-size: 1rem; /* 年の表示（#controls label）と同じ大きさ */
+  border: 1px solid #999; /* 角を丸くするため、枠線をこちらで指定する */
+  border-radius: 20px; /* 角の丸さ。数字を大きくするほど丸くなる */
+}
+
+#search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 2000; /* 地図（Leaflet）の部品より手前に出す */
+  width: 100%;
+  box-sizing: border-box;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #aaa;
+  border-radius: 14px; /* 角の丸さ。中身（セルの網掛け）は、はみ出した部分が overflow で切り取られる */
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  font-size: 1rem;
+}
+
+/* 1行を、4つのセルに分ける（grid：縦横の升目で並べる）。列の幅は、左から 種別｜名前｜開業年｜路線名 */
+#search-results li {
+  display: grid;
+  grid-template-columns: 3.5em 1.2fr 5em 1.4fr;
+  padding: 0;
+  cursor: pointer;
+  border-bottom: 1px solid #bbb;
+}
+
+/* セルの見た目：余白をつけて、右側に区切り線を引く */
+#search-results .cell {
+  padding: 8px 10px;
+  border-right: 1px solid #ccc;
+  overflow-wrap: anywhere; /* 長い名前は、セルの中で折り返す */
+}
+
+#search-results .cell:last-child {
+  border-right: none;
+}
+
+/* 種別のセル：網掛け（色を付ける）にして、文字を中央に置く。駅と路線で色を変える */
+#search-results .cell-kind {
+  text-align: center;
+  color: #333;
+}
+
+#search-results .kind-station {
+  background: #dcdcdc; /* 駅：灰色 */
+}
+
+#search-results .kind-route {
+  background: #cfe0f4; /* 路線：薄い青 */
+}
+
+/* 名前のセル：太字 */
+#search-results .cell-name {
+  font-weight: bold;
+}
+
+/* 開業年のセル：右寄せ */
+#search-results .cell-year {
+  text-align: right;
+}
+
+#search-results li:hover {
+  background: #e8f0fa;
+}
+
+/* 「ほか 〇 件」などの、選べない行：セルに分けず、1つの行にする */
+#search-results li.no-result {
+  display: block;
+  padding: 8px 12px;
+  color: #777;
+  cursor: default;
+}
+
+#search-results li.no-result:hover {
+  background: #fff;
+}
+
+/* 駅名のラベル：駅の点の右に出す。枠や影をなくして、半透明の白い背景で読みやすくする */
+.leaflet-tooltip.station-label {
+  padding: 0 3px;
+  background: rgba(255, 255, 255, 0.75);
+  border: none;
+  box-shadow: none;
+  font-size: 0.75rem;
+  color: #222;
+}
+
+/* ラベルの吹き出しの矢印は、消す */
+.leaflet-tooltip.station-label::before {
+  display: none;
+}
+
+/* 地図の左下の凡例（色の意味の表示） */
+.legend {
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.legend-line {
+  display: inline-block;
+  width: 22px;
+  height: 4px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* 出典・クレジット：ページの一番下。小さい文字にして、地図を広く使う。長いときは、中だけスクロールする */
+#credits {
+  max-height: 18vh;
+  overflow-y: auto;
+  padding: 6px 16px;
+  background: #f4f1ea;
+  border-top: 1px solid #ccc;
+  font-size: 0.75rem;
+  color: #333;
+  line-height: 1.5;
+}
+
+/* 見出し：クリックすると開閉する。左の矢印（▶／▼）はブラウザが自動で付ける */
+#credits summary {
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* 各項目は【　】の見出しで始めるので、行頭の「・」は付けない */
+#credits ul {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+#credits li {
+  margin-bottom: 4px;
+}
+
+#credits a {
+  color: #266EBD;
+  word-break: break-all; /* 長い URL が、画面の外にはみ出さないようにする */
+}
+
+/* 地図は、残りの高さをすべて使う（高さの指定がないと Leaflet の地図は表示されない） */
+#map {
+  flex: 1;
+  /* 背景の画像がない範囲（縮小したときの日本の周りなど）の色。白地図の色に合わせて、余白を目立たなくする */
+  background: #fff;
+}
+
+/* データの読み込み欄：スライダーの行の右端（画面右上）に置く。説明は、押すと下に重ねて開く */
+#data-loader {
+  position: relative; /* 説明の欄の位置の基準にする */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto; /* 残りの余白を左に取って、右端に寄せる */
+  font-size: 0.9rem;
+}
+
+.data-title {
+  font-weight: bold;
+}
+
+/* 「ファイルを選択」ボタン（label）。見た目をボタンらしくする */
+.file-button {
+  padding: 3px 10px;
+  background: #f0f0f0;
+  border: 1px solid #888;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.file-button:hover {
+  background: #e2e2e2;
+}
+
+/* 隠したファイル選択欄。display:none にせず、画面の外に置く（キーボードでも使えるようにするため） */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* キーボードで選ばれたとき、ボタンに枠を出す */
+.visually-hidden:focus-visible + .file-button,
+.file-button:has(+ .visually-hidden:focus-visible) {
+  outline: 2px solid #1a5fb4;
+  outline-offset: 2px;
+}
+
+#data-status {
+  color: #555;
+}
+
+#data-help summary {
+  cursor: pointer;
+  color: #1a5fb4;
+}
+
+.data-help-body {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 2000; /* 地図（Leaflet）の部品より手前に出す */
+  width: 380px;
+  max-width: 90vw;
+  box-sizing: border-box;
+  margin-top: 6px;
+  padding: 8px 14px;
+  background: #fff;
+  border: 1px solid #aaa;
+  border-radius: 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.data-help-body .note {
+  color: #555;
+}
